@@ -32,7 +32,7 @@ jobs:
       - name: Install Cordova
         run: npm install -g cordova
 
-      - name: Create VEYLQOR Android Project
+      - name: Create VEYLQOR Project
         run: |
           cordova create myapp com.shimul.htmlapp VEYLQOR
 
@@ -41,23 +41,29 @@ jobs:
           cd myapp
           cordova platform add android@15.0.0
 
-      - name: Copy Original HTML Application
+      - name: Find and Copy Original HTML
         shell: bash
         run: |
           set -e
 
+          echo "Checking repository files..."
+          ls -la "$GITHUB_WORKSPACE"
+
           mapfile -d '' HTML_FILES < <(
             find "$GITHUB_WORKSPACE" \
-              -maxdepth 1 -type f \
-              \( -iname '*.html' -o -iname '*.htm' \) \
+              -maxdepth 1 \
+              -type f \
+              -iname 'VEYLQOR_Studio_update-24*' \
               -print0
           )
 
           if [ "${#HTML_FILES[@]}" -ne 1 ]; then
-            echo "ERROR: Expected exactly one main HTML file."
+            echo "ERROR: Expected one VEYLQOR HTML file."
             echo "Found: ${#HTML_FILES[@]}"
             exit 1
           fi
+
+          mkdir -p myapp/www
 
           rsync -av \
             --exclude='.git/' \
@@ -70,10 +76,12 @@ jobs:
 
           cp "${HTML_FILES[0]}" myapp/www/index.html
 
-          echo "Original HTML renamed to index.html"
+          if [ ! -s myapp/www/index.html ]; then
+            echo "ERROR: index.html is missing or empty."
+            exit 1
+          fi
 
-          test -s myapp/www/index.html
-
+          echo "Original VEYLQOR HTML copied successfully."
           echo "Application files:"
           find myapp/www -maxdepth 3 -type f
 
@@ -86,10 +94,14 @@ jobs:
         run: |
           APK="myapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
 
-          test -f "$APK"
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK was not generated."
+            exit 1
+          fi
+
           unzip -l "$APK" | grep 'assets/www/index.html'
 
-          echo "APK successfully generated."
+          echo "VEYLQOR APK successfully generated."
 
       - name: Upload VEYLQOR APK
         uses: actions/upload-artifact@v4
