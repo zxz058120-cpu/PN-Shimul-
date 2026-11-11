@@ -36,14 +36,14 @@ jobs:
           cordova create myapp com.shimul.htmlapp HTMLApp
           cd myapp
           
-          # কর্ডোভার ডিফল্ট ফাইলগুলো একদম মুছে ফেলছি যেন আপনার আসল ডিজাইন মিসিং না হয়
+          # কর্ডোভার ডিফল্ট ফাইলগুলো মুছে ফেলা
           rm -rf www/*
 
           # অ্যান্ড্রয়েড প্ল্যাটফর্ম ইনস্টল এবং লোকালহোস্ট/ইনসিকিউর ফাইল মোড ফিক্স
           cordova platform add android@15.0.0
           sed -i 's|<content src="index.html" />|<content src="index.html" />\n    <preference name="AndroidInsecureFileModeEnabled" value="true" />|g' config.xml
 
-          # প্রয়োজনীয় পারমিশনগুলো সরাসরি কনফিগে যুক্ত করা যেন অ্যাপ ক্র্যাশ না করে
+          # প্রয়োজনীয় পারমিশনগুলো কনফিগে যুক্ত করা
           sed -i '/<platform name="android">/a \
               <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest">\n\
                   <uses-permission android:name="android.permission.INTERNET" />\n\
@@ -53,25 +53,32 @@ jobs:
                   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />\n\
               </edit-config>' config.xml
 
-      - name: Copy Original HTML Website Files
+      - name: Copy and Setup HTML Files
         run: |
-          # আপনার গিটহাবের রুট ফোল্ডার থেকে সকল এইচটিএমএল/জেএস/সিএসএস ফাইল সরাসরি কর্ডোভার www ফোল্ডারে নিয়ে যাওয়া
+          mkdir -p myapp/www
+          
+          # যদি আপনার মূল ফাইলটি VEYLQOR_Studio_update-24.html হয়, তবে তা www ফোল্ডারে index.html হিসেবে কপি হবে
+          if [ -f "VEYLQOR_Studio_update-24.html" ]; then
+            cp "VEYLQOR_Studio_update-24.html" "myapp/www/index.html"
+          fi
+
+          # বাকি অন্যান্য ফাইলগুলোও কপি করে নেওয়া
           rsync -av \
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='myapp/' \
             --exclude='config.xml' \
+            --exclude='VEYLQOR_Studio_update-24.html' \
             --exclude='README*' \
             --exclude='LICENSE*' \
             "$GITHUB_WORKSPACE/" myapp/www/
 
-          # যদি index.html ফাইল না থাকে তবে বিল্ড আটকে দিবে
           if [ ! -f myapp/www/index.html ]; then
-            echo "ERROR: index.html not found in repository root!"
+            echo "ERROR: index.html could not be generated!"
             exit 1
           fi
 
-          echo "Website files copied successfully to www folder."
+          echo "Website files copied and set up successfully."
           ls -la myapp/www/
 
       - name: Build Android APK
@@ -88,7 +95,6 @@ jobs:
             exit 1
           fi
 
-          # চেক করবে যে APK ফাইলের ভেতরে আপনার index.html ফাইলটি সফলভাবে প্যাক হয়েছে কি না
           unzip -l "$APK" | grep 'assets/www/index.html'
 
           echo "APK verification completed successfully."
