@@ -1,5 +1,5 @@
 
-name: Build Android APK from HTML
+name: Build VEYLQOR Android APK
 
 on:
   push:
@@ -32,17 +32,33 @@ jobs:
       - name: Install Cordova
         run: npm install -g cordova
 
-      - name: Create Android Project
+      - name: Create VEYLQOR Android Project
         run: |
-          cordova create myapp com.shimul.htmlapp HTMLApp
+          cordova create myapp com.shimul.htmlapp VEYLQOR
 
       - name: Install Android Platform
         run: |
           cd myapp
           cordova platform add android@15.0.0
 
-      - name: Copy Original HTML Website
+      - name: Copy Original HTML Application
+        shell: bash
         run: |
+          set -e
+
+          mapfile -d '' HTML_FILES < <(
+            find "$GITHUB_WORKSPACE" \
+              -maxdepth 1 -type f \
+              \( -iname '*.html' -o -iname '*.htm' \) \
+              -print0
+          )
+
+          if [ "${#HTML_FILES[@]}" -ne 1 ]; then
+            echo "ERROR: Expected exactly one main HTML file."
+            echo "Found: ${#HTML_FILES[@]}"
+            exit 1
+          fi
+
           rsync -av \
             --exclude='.git/' \
             --exclude='.github/' \
@@ -52,13 +68,14 @@ jobs:
             --exclude='LICENSE*' \
             "$GITHUB_WORKSPACE/" myapp/www/
 
-          if [ ! -f myapp/www/index.html ]; then
-            echo "ERROR: index.html not found!"
-            exit 1
-          fi
+          cp "${HTML_FILES[0]}" myapp/www/index.html
 
-          echo "Website files copied successfully."
-          ls -la myapp/www/
+          echo "Original HTML renamed to index.html"
+
+          test -s myapp/www/index.html
+
+          echo "Application files:"
+          find myapp/www -maxdepth 3 -type f
 
       - name: Build Android APK
         run: |
@@ -69,18 +86,14 @@ jobs:
         run: |
           APK="myapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
 
-          if [ ! -f "$APK" ]; then
-            echo "ERROR: APK not found!"
-            exit 1
-          fi
-
+          test -f "$APK"
           unzip -l "$APK" | grep 'assets/www/index.html'
 
-          echo "APK verification completed."
+          echo "APK successfully generated."
 
-      - name: Upload APK
+      - name: Upload VEYLQOR APK
         uses: actions/upload-artifact@v4
         with:
-          name: HTML-Android-APK
+          name: VEYLQOR-Android-APK
           path: myapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
