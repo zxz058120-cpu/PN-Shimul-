@@ -1,4 +1,4 @@
-name: HTML Build
+name: Build Android APK from HTML
 
 on:
   push:
@@ -9,11 +9,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Upload HTML Files
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install Cordova / Native App Builder
+      run: |
+        npm install -g cordova
+
+    - name: Create Cordova Project
+      run: |
+        cordova create myapp com.shimul.htmlapp HTMLApp
+        cd myapp
+        rm -rf www/*
+        cp -r ../* www/ 2>/dev/null || true
+        rm -rf www/.github www/.git
+        cordova platform add android
+
+    - name: Build APK
+      run: |
+        cd myapp
+        cordova build android --debug
+
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: html-files
-        path: .
+        name: app-debug-apk
+        path: myapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
