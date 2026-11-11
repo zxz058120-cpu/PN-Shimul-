@@ -57,21 +57,30 @@ jobs:
         run: |
           mkdir -p myapp/www
           
-          # যদি আপনার মূল ফাইলটি VEYLQOR_Studio_update-24.html হয়, তবে তা www ফোল্ডারে index.html হিসেবে কপি হবে
-          if [ -f "VEYLQOR_Studio_update-24.html" ]; then
-            cp "VEYLQOR_Studio_update-24.html" "myapp/www/index.html"
+          # রুট ফোল্ডারে থাকা মূল ফাইলটি (.encrypted বা অন্য যেকোনো নাম হোক) খুঁজে বের করে www ফোল্ডারে index.html বানাবে
+          MAIN_FILE=$(ls | grep -E '\.html' | head -n 1)
+          if [ -n "$MAIN_FILE" ]; then
+            echo "Found main file: $MAIN_FILE"
+            cp "$MAIN_FILE" "myapp/www/index.html"
           fi
 
-          # বাকি অন্যান্য ফাইলগুলোও কপি করে নেওয়া
+          # বাকি অন্যান্য ফাইলগুলো কপি করে নেওয়া
           rsync -av \
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='myapp/' \
             --exclude='config.xml' \
-            --exclude='VEYLQOR_Studio_update-24.html' \
             --exclude='README*' \
             --exclude='LICENSE*' \
             "$GITHUB_WORKSPACE/" myapp/www/
+
+          # যদি কোনো কারণে index.html না থাকে, তবে রুট থেকে যেকোনো .html ফাইল রিনেম করে বসিয়ে দিবে
+          if [ ! -f myapp/www/index.html ]; then
+            ANY_HTML=$(find myapp/www -name "*.html" | head -n 1)
+            if [ -n "$ANY_HTML" ]; then
+              mv "$ANY_HTML" "myapp/www/index.html"
+            fi
+          fi
 
           if [ ! -f myapp/www/index.html ]; then
             echo "ERROR: index.html could not be generated!"
