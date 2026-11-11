@@ -1,5 +1,4 @@
-
-name: Build VEYLQOR Android APK
+name: Build Android APK from HTML
 
 on:
   push:
@@ -32,39 +31,31 @@ jobs:
       - name: Install Cordova
         run: npm install -g cordova
 
-      - name: Create VEYLQOR Project
+      - name: Create Android Project & Fix Config
         run: |
-          cordova create myapp com.shimul.htmlapp VEYLQOR
-
-      - name: Install Android Platform
-        run: |
+          cordova create myapp com.shimul.htmlapp HTMLApp
           cd myapp
+          
+          # কর্ডোভার ডিফল্ট ফাইলগুলো একদম মুছে ফেলছি যেন আপনার আসল ডিজাইন মিসিং না হয়
+          rm -rf www/*
+
+          # অ্যান্ড্রয়েড প্ল্যাটফর্ম ইনস্টল এবং লোকালহোস্ট/ইনসিকিউর ফাইল মোড ফিক্স
           cordova platform add android@15.0.0
+          sed -i 's|<content src="index.html" />|<content src="index.html" />\n    <preference name="AndroidInsecureFileModeEnabled" value="true" />|g' config.xml
 
-      - name: Find and Copy Original HTML
-        shell: bash
+          # প্রয়োজনীয় পারমিশনগুলো সরাসরি কনফিগে যুক্ত করা যেন অ্যাপ ক্র্যাশ না করে
+          sed -i '/<platform name="android">/a \
+              <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest">\n\
+                  <uses-permission android:name="android.permission.INTERNET" />\n\
+                  <uses-permission android:name="android.permission.CAMERA" />\n\
+                  <uses-permission android:name="android.permission.RECORD_AUDIO" />\n\
+                  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n\
+                  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />\n\
+              </edit-config>' config.xml
+
+      - name: Copy Original HTML Website Files
         run: |
-          set -e
-
-          echo "Checking repository files..."
-          ls -la "$GITHUB_WORKSPACE"
-
-          mapfile -d '' HTML_FILES < <(
-            find "$GITHUB_WORKSPACE" \
-              -maxdepth 1 \
-              -type f \
-              -iname 'VEYLQOR_Studio_update-24*' \
-              -print0
-          )
-
-          if [ "${#HTML_FILES[@]}" -ne 1 ]; then
-            echo "ERROR: Expected one VEYLQOR HTML file."
-            echo "Found: ${#HTML_FILES[@]}"
-            exit 1
-          fi
-
-          mkdir -p myapp/www
-
+          # আপনার গিটহাবের রুট ফোল্ডার থেকে সকল এইচটিএমএল/জেএস/সিএসএস ফাইল সরাসরি কর্ডোভার www ফোল্ডারে নিয়ে যাওয়া
           rsync -av \
             --exclude='.git/' \
             --exclude='.github/' \
@@ -74,38 +65,37 @@ jobs:
             --exclude='LICENSE*' \
             "$GITHUB_WORKSPACE/" myapp/www/
 
-          cp "${HTML_FILES[0]}" myapp/www/index.html
-
-          if [ ! -s myapp/www/index.html ]; then
-            echo "ERROR: index.html is missing or empty."
+          # যদি index.html ফাইল না থাকে তবে বিল্ড আটকে দিবে
+          if [ ! -f myapp/www/index.html ]; then
+            echo "ERROR: index.html not found in repository root!"
             exit 1
           fi
 
-          echo "Original VEYLQOR HTML copied successfully."
-          echo "Application files:"
-          find myapp/www -maxdepth 3 -type f
+          echo "Website files copied successfully to www folder."
+          ls -la myapp/www/
 
       - name: Build Android APK
         run: |
           cd myapp
           cordova build android --debug
 
-      - name: Verify APK
+      - name: Verify APK Content
         run: |
           APK="myapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
 
           if [ ! -f "$APK" ]; then
-            echo "ERROR: APK was not generated."
+            echo "ERROR: APK not found!"
             exit 1
           fi
 
+          # চেক করবে যে APK ফাইলের ভেতরে আপনার index.html ফাইলটি সফলভাবে প্যাক হয়েছে কি না
           unzip -l "$APK" | grep 'assets/www/index.html'
 
-          echo "VEYLQOR APK successfully generated."
+          echo "APK verification completed successfully."
 
-      - name: Upload VEYLQOR APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VEYLQOR-Android-APK
+          name: HTML-Android-APK
           path: myapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
